@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react"
+import React from "react";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { RotaPromotor, CampanhaPerguntas, CampanhaResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { RequestFeedback } from "@/components/request-feedback";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { Loader2, Send, MapPin } from "lucide-react";
 
 interface CheckinFormProps {
@@ -23,7 +25,7 @@ interface CheckinFormProps {
   perguntas: CampanhaPerguntas[];
   open: boolean;
   onClose: () => void;
-  onSubmit: (rotaId: string, results: CampanhaResult[], obs: string) => void;
+  onSubmit: (rotaId: number, results: CampanhaResult[], obs: string) => void;
 }
 
 export function CheckinForm({
@@ -35,7 +37,21 @@ export function CheckinForm({
 }: CheckinFormProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [obs, setObs] = useState("");
-  const [loading, setLoading] = useState(false);
+
+  const submitAction = useCallback(
+    async (rotaId: string, results: CampanhaResult[], obsText: string) => {
+      onSubmit(parseInt(rotaId, 10), results, obsText);
+      return true;
+    },
+    [onSubmit]
+  );
+
+  const {
+    feedbackState,
+    execute: executeSubmit,
+    retry: retrySubmit,
+    reset: resetFeedback,
+  } = useAsyncAction(submitAction, { delay: 2000, errorChance: 0.1 });
 
   const handleChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -45,19 +61,24 @@ export function CheckinForm({
     e.preventDefault();
     if (!rota) return;
 
-    setLoading(true);
-    try {
-      const results: CampanhaResult[] = perguntas.map((p) => ({
-        id_rota: rota.id_rota_promotor,
-        id_pergunta: p.id_perguntas,
-        resposta: answers[p.id_perguntas] || "",
-      }));
+    const results: CampanhaResult[] = perguntas.map((p) => ({
+      id_rota: rota.id_rota_promotor,
+      id_pergunta: p.id_perguntas,
+      resposta: answers[p.id_perguntas] || "",
+    }));
 
-      onSubmit(rota.id_rota_promotor, results, obs);
+    const { ok } = await executeSubmit(rota.id_rota_promotor.toString(), results, obs);
+    if (ok) {
       setAnswers({});
       setObs("");
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const handleFeedbackClose = () => {
+    const wasSuccess = feedbackState === "success";
+    resetFeedback();
+    if (wasSuccess) {
+      onClose();
     }
   };
 
@@ -155,10 +176,10 @@ export function CheckinForm({
           <Button
             type="submit"
             size="lg"
-            disabled={loading || !allAnswered}
+            disabled={feedbackState === "loading" || !allAnswered}
             className="h-12 w-full gap-2 text-sm font-semibold"
           >
-            {loading ? (
+            {feedbackState === "loading" ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Enviando...
@@ -172,6 +193,16 @@ export function CheckinForm({
           </Button>
         </form>
       </DialogContent>
+
+      <RequestFeedback
+        state={feedbackState}
+        loadingMessage="Enviando respostas da visita..."
+        successMessage="Visita finalizada com sucesso!"
+        errorMessage="Falha ao enviar dados. Verifique sua conexao."
+        onClose={handleFeedbackClose}
+        onRetry={retrySubmit}
+        autoCloseDuration={1500}
+      />
     </Dialog>
   );
 }

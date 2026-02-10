@@ -21,7 +21,7 @@ export function AppHeader() {
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
-            {promotor?.nome?.split(" ")[0]}
+            {promotor?.NOME?.split(" ")[0]}
           </span>
           <Button
             variant="ghost"

@@ -14,12 +14,16 @@ interface RouteCarouselProps {
   rotas: RotaPromotor[];
   onNavigate: (rota: RotaPromotor) => void;
   onCheckin: (rota: RotaPromotor) => void;
+  isNavigating?: boolean;
+  isCheckingIn?: boolean;
 }
 
 export function RouteCarousel({
   rotas,
   onNavigate,
   onCheckin,
+  isNavigating,
+  isCheckingIn,
 }: RouteCarouselProps) {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -85,6 +89,8 @@ export function RouteCarousel({
                 rota={rota}
                 onNavigate={onNavigate}
                 onCheckin={onCheckin}
+                isNavigating={isNavigating}
+                isCheckingIn={isCheckingIn}
               />
             </CarouselItem>
           ))}

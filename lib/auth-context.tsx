@@ -9,11 +9,12 @@ import {
 } from "react";
 import type { Promotor } from "./types";
 import { mockPromotor } from "./mock-data";
+import { loginService } from "@/service/auth.service";
 
 interface AuthContextType {
   promotor: Promotor | null;
   isAuthenticated: boolean;
-  login: (cpf: string, senha: string) => Promise<boolean>;
+  login: (email: string, senha: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -22,10 +23,20 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [promotor, setPromotor] = useState<Promotor | null>(null);
 
-  const login = useCallback(async (cpf: string, _senha: string) => {
-    // Mock: accept any CPF with password "123456"
-    // In production, this would call your backend API
-    if (cpf.replace(/\D/g, "").length >= 11) {
+  const login = useCallback(async (email: string, senha: string) => {
+    // If API URL is configured, call the real backend
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      try {
+        const response = await loginService(email, senha);
+        setPromotor(response.promotor);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    // Fallback mock for development without backend
+    if (email.replace(/\D/g, "").length >= 11) {
       setPromotor(mockPromotor);
       return true;
     }

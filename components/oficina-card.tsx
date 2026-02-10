@@ -9,12 +9,15 @@ import {
   Phone,
   ClipboardCheck,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 
 interface OficinaCardProps {
   rota: RotaPromotor;
   onNavigate: (rota: RotaPromotor) => void;
   onCheckin: (rota: RotaPromotor) => void;
+  isNavigating?: boolean;
+  isCheckingIn?: boolean;
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -22,11 +25,11 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     label: "Pendente",
     className: "bg-secondary text-secondary-foreground",
   },
-  A_CAMINHO: {
+  "A CAMINHO": {
     label: "A caminho",
     className: "bg-warning text-warning-foreground",
   },
-  EM_ANDAMENTO: {
+  "EM ANDAMENTO": {
     label: "Em andamento",
     className: "bg-primary text-primary-foreground",
   },
@@ -40,7 +43,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   },
 };
 
-export function OficinaCard({ rota, onNavigate, onCheckin }: OficinaCardProps) {
+export function OficinaCard({ rota, onNavigate, onCheckin, isNavigating, isCheckingIn }: OficinaCardProps) {
   const config = statusConfig[rota.status] || statusConfig.BACKLOG;
   const isFinished = rota.status === "FINALIZADO" || rota.status === "CANCELADO";
 
@@ -98,30 +101,45 @@ export function OficinaCard({ rota, onNavigate, onCheckin }: OficinaCardProps) {
               <Button
                 onClick={() => onNavigate(rota)}
                 variant="outline"
+                disabled={isNavigating}
                 className="h-11 flex-1 gap-2 text-xs font-medium"
               >
-                <Navigation className="h-3 w-3" />
-                Ir a caminho
+                {isNavigating ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Navigation className="h-3 w-3" />
+                )}
+                {isNavigating ? "Abrindo..." : "Ir a caminho"}
               </Button>
             )}
 
-            {(rota.status === "A_CAMINHO" || rota.status === "BACKLOG") && (
+            {(rota.status === "A CAMINHO" || rota.status === "BACKLOG") && (
               <Button
                 onClick={() => onCheckin(rota)}
+                disabled={isCheckingIn}
                 className="h-11 flex-1 gap-2 text-xs font-medium"
               >
-                <ClipboardCheck className="h-3 w-3" />
-                Check-in
+                {isCheckingIn ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ClipboardCheck className="h-3 w-3" />
+                )}
+                {isCheckingIn ? "Registrando..." : "Check-in"}
               </Button>
             )}
 
-            {rota.status === "EM_ANDAMENTO" && (
+            {rota.status === "EM ANDAMENTO" && (
               <Button
                 onClick={() => onCheckin(rota)}
+                disabled={isCheckingIn}
                 className="h-11 flex-1 gap-2 text-xs font-medium"
               >
-                <ClipboardCheck className="h-3 w-3" />
-                Finalizar visita
+                {isCheckingIn ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ClipboardCheck className="h-3 w-3" />
+                )}
+                {isCheckingIn ? "Registrando..." : "Finalizar visita"}
               </Button>
             )}
           </div>

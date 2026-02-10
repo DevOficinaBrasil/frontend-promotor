@@ -1,38 +1,62 @@
 "use client";
 
-import React from "react"
-
-import { useState } from "react";
+import React from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RequestFeedback } from "@/components/request-feedback";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { MapPin, Eye, EyeOff, Loader2 } from "lucide-react";
 
-function formatCPF(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9)
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+/**
+ * Validador de E-mail
+ * Utiliza uma expressão regular simples para verificar o formato do e-mail.
+ */
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }
 
 export function LoginForm() {
   const { login } = useAuth();
-  const [cpf, setCpf] = useState("");
+  
+  // Alterado de cpf para email
+  const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+
+  const loginAction = useCallback(
+    async (emailInput: string, password: string) => {
+      const success = await login(emailInput, password);
+      // Mensagem genérica por segurança
+      if (!success) throw new Error("E-mail ou senha incorretos");
+      return success;
+    },
+    [login]
+  );
+
+  const {
+    feedbackState,
+    execute: executeLogin,
+    retry: retryLogin,
+    reset: resetFeedback,
+  } = useAsyncAction(loginAction, { delay: 1500, errorChance: 0.15 });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    const cleanCpf = cpf.replace(/\D/g, "");
-    if (cleanCpf.length !== 11) {
-      setError("CPF deve conter 11 digitos");
+    // Nova lógica de validação de e-mail
+    if (!email) {
+      setError("Informe seu e-mail");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setError("Informe um e-mail válido");
       return;
     }
 
@@ -41,16 +65,10 @@ export function LoginForm() {
       return;
     }
 
-    setLoading(true);
-    try {
-      const success = await login(cleanCpf, senha);
-      if (!success) {
-        setError("CPF ou senha incorretos");
-      }
-    } catch {
-      setError("Erro ao realizar login. Tente novamente.");
-    } finally {
-      setLoading(false);
+    // Executa o login com o e-mail validado
+    const { ok } = await executeLogin(email, senha);
+    if (!ok && feedbackState !== "error") {
+      setError("E-mail ou senha incorretos");
     }
   };
 
@@ -65,7 +83,7 @@ export function LoginForm() {
             RotaCheck
           </h1>
           <p className="text-sm text-primary-foreground/70">
-            Gestao de visitas e rotas
+            Gestão de visitas e rotas
           </p>
         </div>
 
@@ -75,18 +93,17 @@ export function LoginForm() {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="cpf" className="text-sm font-medium text-card-foreground">
-                CPF
+              <Label htmlFor="email" className="text-sm font-medium text-card-foreground">
+                E-mail
               </Label>
               <Input
-                id="cpf"
-                type="text"
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                value={cpf}
-                onChange={(e) => setCpf(formatCPF(e.target.value))}
+                id="email"
+                type="email" // Tipo alterado para 'email' para teclados mobile adequados
+                placeholder="exemplo@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-12 text-base"
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
 
@@ -129,10 +146,10 @@ export function LoginForm() {
           <Button
             type="submit"
             size="lg"
-            disabled={loading}
+            disabled={feedbackState === "loading"}
             className="h-12 w-full text-base font-semibold"
           >
-            {loading ? (
+            {feedbackState === "loading" ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
                 Entrando...
@@ -144,9 +161,19 @@ export function LoginForm() {
         </form>
 
         <p className="mt-6 text-center text-xs text-primary-foreground/50">
-          {"Versao 1.0.0"}
+          {"Versão 1.0.0"}
         </p>
       </div>
+
+      <RequestFeedback
+        state={feedbackState}
+        loadingMessage="Validando suas credenciais..."
+        successMessage="Login realizado com sucesso!"
+        errorMessage="Falha ao conectar com o servidor. Verifique sua conexão."
+        onClose={resetFeedback}
+        onRetry={retryLogin}
+        autoCloseDuration={1200}
+      />
     </div>
   );
 }

@@ -1,30 +1,50 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { RotaPromotor, CampanhaResult } from "@/lib/types";
 import { mockRotas, mockPerguntas } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
+import { getCampanhaAtiva } from "@/service/campanha.service";
+import { updateRotaACaminho, updateRotaCheckin, updateRotaFinalizado } from "@/service/rota.service";
 import { AppHeader } from "@/components/app-header";
 import { RouteCarousel } from "@/components/route-carousel";
 import { CheckinForm } from "@/components/checkin-form";
+import { RequestFeedback } from "@/components/request-feedback";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, CheckCircle2, MapPin } from "lucide-react";
+import { CheckCircle2, ClipboardList, Loader2 } from "lucide-react";
 
 export function HomeScreen() {
-  const [rotas, setRotas] = useState<RotaPromotor[]>(mockRotas);
+  const { promotor } = useAuth();
+  const [rotas, setRotas] = useState<RotaPromotor[]>([]);
   const [selectedRota, setSelectedRota] = useState<RotaPromotor | null>(null);
   const [checkinOpen, setCheckinOpen] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Load campaign routes on mount
+  useEffect(() => {
+    async function loadRotas() {
+      if (process.env.NEXT_PUBLIC_API_URL && promotor) {
+        try {
+          const { rotas: apiRotas } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
+          setRotas(apiRotas);
+        } catch {
+          // Fallback to mock if API fails
+          setRotas(mockRotas);
+        }
+      } else {
+        setRotas(mockRotas);
+      }
+      setInitialLoading(false);
+    }
+    loadRotas();
+  }, [promotor]);
 
   const pendingRotas = useMemo(
     () =>
       rotas
-        .filter(
-          (r) =>
-            r.status !== "FINALIZADO" && r.status !== "CANCELADO"
-        )
-        .sort(
-          (a, b) =>
-            (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999)
-        ),
+        .filter((r) => r.status !== "FINALIZADO" && r.status !== "CANCELADO")
+        .sort((a, b) => (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999)),
     [rotas]
   );
 
@@ -33,55 +53,108 @@ export function HomeScreen() {
     [rotas]
   );
 
-  const handleNavigate = (rota: RotaPromotor) => {
-    // Update status to A_CAMINHO
-    setRotas((prev) =>
-      prev.map((r) =>
-        r.id_rota_promotor === rota.id_rota_promotor
-          ? { ...r, status: "A_CAMINHO" as const }
-          : r
-      )
-    );
+  // -- Navigate: set status to "A CAMINHO" --
+  const navigateAction = useCallback(
+    async (rota: RotaPromotor) => {
+      if (process.env.NEXT_PUBLIC_API_URL) {
+        await updateRotaACaminho(rota.id_rota_promotor);
+      }
+      setRotas((prev) =>
+        prev.map((r) =>
+          r.id_rota_promotor === rota.id_rota_promotor
+            ? { ...r, status: "A CAMINHO" as const }
+            : r
+        )
+      );
+      return rota;
+    },
+    []
+  );
 
-    // Open Google Maps with the destination
-    const { lat, lng } = rota.oficina;
-    const destination = encodeURIComponent(rota.oficina.endereco);
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${destination}&travelmode=driving`;
-    window.open(mapsUrl, "_blank");
+  const {
+    feedbackState: navFeedback,
+    execute: executeNavigate,
+    retry: retryNavigate,
+    reset: resetNavFeedback,
+  } = useAsyncAction(navigateAction, { delay: 1000, errorChance: 0 });
+
+  const handleNavigate = async (rota: RotaPromotor) => {
+    const { ok } = await executeNavigate(rota);
+    if (ok) {
+      const destination = encodeURIComponent(rota.oficina.endereco);
+      // Use LOCALIZACAO field if available for precise coordinates
+      let mapsUrl: string;
+      if (rota.oficina.localizacao) {
+        const [lat, lng] = rota.oficina.localizacao.split(",");
+        mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${destination}&travelmode=driving`;
+      } else {
+        mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+      }
+      setTimeout(() => {
+        window.open(mapsUrl, "_blank");
+      }, 1600);
+    }
   };
 
-  const handleCheckin = (rota: RotaPromotor) => {
-    // Update status to EM_ANDAMENTO
-    setRotas((prev) =>
-      prev.map((r) =>
-        r.id_rota_promotor === rota.id_rota_promotor
-          ? {
-              ...r,
-              status: "EM_ANDAMENTO" as const,
-              checkin_time: new Date().toISOString(),
-            }
-          : r
-      )
-    );
-    setSelectedRota(rota);
+  // -- Check-in: set status to "EM ANDAMENTO" + CHECKIN_TIME --
+  const checkinAction = useCallback(
+    async (rota: RotaPromotor) => {
+      const checkinTime = new Date().toISOString();
+      if (process.env.NEXT_PUBLIC_API_URL) {
+        await updateRotaCheckin(rota.id_rota_promotor);
+      }
+      setRotas((prev) =>
+        prev.map((r) =>
+          r.id_rota_promotor === rota.id_rota_promotor
+            ? { ...r, status: "EM ANDAMENTO" as const, checkin_time: checkinTime }
+            : r
+        )
+      );
+      return rota;
+    },
+    []
+  );
+
+  const {
+    feedbackState: checkinFeedback,
+    execute: executeCheckinAction,
+    retry: retryCheckinAction,
+    reset: resetCheckinFeedback,
+  } = useAsyncAction(checkinAction, { delay: 1200, errorChance: 0 });
+
+  const handleCheckin = async (rota: RotaPromotor) => {
+    const { ok, result } = await executeCheckinAction(rota);
+    if (ok && result) {
+      setSelectedRota(result);
+    }
   };
 
-  const handleSubmitCheckin = (
-    rotaId: string,
+  const handleCheckinFeedbackClose = () => {
+    const wasSuccess = checkinFeedback === "success";
+    resetCheckinFeedback();
+    if (wasSuccess && selectedRota) {
+      setCheckinOpen(true);
+    }
+  };
+
+  // -- Finalizar: set status to "FINALIZADO" + DONE_AT --
+  const handleSubmitCheckin = async (
+    rotaId: number,
     _results: CampanhaResult[],
-    _obs: string
+    obs: string
   ) => {
-    // In production, send results to your backend API
-    // POST /api/campanha-results with { rotaId, results, obs }
+    const doneAt = new Date().toISOString();
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      try {
+        await updateRotaFinalizado(rotaId, obs || undefined);
+      } catch {
+        // Will still update locally for UX, backend can be retried
+      }
+    }
     setRotas((prev) =>
       prev.map((r) =>
         r.id_rota_promotor === rotaId
-          ? {
-              ...r,
-              status: "FINALIZADO" as const,
-              success: true,
-              done_at: new Date().toISOString(),
-            }
+          ? { ...r, status: "FINALIZADO" as const, success: true, done_at: doneAt }
           : r
       )
     );
@@ -89,46 +162,36 @@ export function HomeScreen() {
     setSelectedRota(null);
   };
 
+  if (initialLoading) {
+    return (
+      <div className="flex min-h-dvh flex-col bg-background">
+        <AppHeader />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Carregando sua rota...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <AppHeader />
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-5">
         {/* Stats */}
-        <div className="flex items-center gap-3">
-          <div className="flex flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-card-foreground">
-                {pendingRotas.length}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                Pendentes
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-            <CheckCircle2 className="h-5 w-5 text-success" />
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-card-foreground">
-                {completedCount}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                Concluidas
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-            <MapPin className="h-5 w-5 text-warning" />
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-card-foreground">
-                {rotas.length}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                Total
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <ClipboardList className="h-5 w-5 text-primary" />
+          <span className="text-sm font-medium text-card-foreground">
+            Visitas realizadas
+          </span>
+          <span className="ml-auto text-lg font-bold text-card-foreground">
+            {completedCount}
+            <span className="text-muted-foreground">{"/"}</span>
+            {rotas.length}
+          </span>
         </div>
 
         {/* Route section */}
@@ -146,6 +209,8 @@ export function HomeScreen() {
             rotas={pendingRotas}
             onNavigate={handleNavigate}
             onCheckin={handleCheckin}
+            isNavigating={navFeedback === "loading"}
+            isCheckingIn={checkinFeedback === "loading"}
           />
         </div>
 
@@ -196,6 +261,28 @@ export function HomeScreen() {
           setSelectedRota(null);
         }}
         onSubmit={handleSubmitCheckin}
+      />
+
+      {/* Navigate feedback */}
+      <RequestFeedback
+        state={navFeedback}
+        loadingMessage="Atualizando status da rota..."
+        successMessage="Rota atualizada! Abrindo o mapa..."
+        errorMessage="Falha ao atualizar a rota. Tente novamente."
+        onClose={resetNavFeedback}
+        onRetry={retryNavigate}
+        autoCloseDuration={1400}
+      />
+
+      {/* Check-in feedback */}
+      <RequestFeedback
+        state={checkinFeedback}
+        loadingMessage="Registrando check-in..."
+        successMessage="Check-in realizado! Responda as perguntas."
+        errorMessage="Falha ao registrar check-in. Tente novamente."
+        onClose={handleCheckinFeedbackClose}
+        onRetry={retryCheckinAction}
+        autoCloseDuration={1200}
       />
     </div>
   );
