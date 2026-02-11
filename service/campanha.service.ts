@@ -15,6 +15,7 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
     .filter(Boolean)
     .join(", ");
 
+
   return {
     id_rota_promotor: rota.ID_ROTA_PROMOTOR,
     id_oficina: rota.ID_OFICINA,
@@ -34,6 +35,10 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
       bairro: o.BAIRRO,
       cidade: o.CIDADE,
       estado: o.ESTADO,
+      cor_icone: o.cor_icone,
+      flag_engajamento: o.flag_engajamento,
+      flag_sentimento: o.flag_sentimento,
+      flag_treinamento: o.flag_treinamento,
     },
     campanha,
   };

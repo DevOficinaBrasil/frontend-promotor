@@ -15,7 +15,7 @@ export function AppHeader() {
             <MapPin className="h-4 w-4 text-verde" />
           </div>
           <span className="text-base font-bold text-card-foreground">
-            OFBR Promoters
+            OFBR Promotores
           </span>
         </div>
 
@@ -27,7 +27,7 @@ export function AppHeader() {
             variant="ghost"
             size="icon"
             onClick={logout}
-            className="h-9 w-9 text-muted-foreground hover:text-destructive"
+            className="h-9 w-9 text-muted-foreground hover:text-verde hover:bg-azul"
             aria-label="Sair"
           >
             <LogOut className="h-4 w-4" />

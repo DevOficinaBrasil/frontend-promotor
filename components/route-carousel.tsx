@@ -49,6 +49,10 @@ export function RouteCarousel({
     [onSelect]
   );
 
+  const temRotaAtiva = rotas.some(
+  (r) => r.status === "A CAMINHO" || r.status === "EM ANDAMENTO"
+);
+
   if (rotas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card px-6 py-12">
@@ -100,6 +104,7 @@ export function RouteCarousel({
                 isNavigating={isNavigating}
                 isCheckingIn={isCheckingIn}
                 isLoadingSurvey={isCheckingInSurvey}
+                isAnyRouteActive={temRotaAtiva}
               />
             </CarouselItem>
           ))}

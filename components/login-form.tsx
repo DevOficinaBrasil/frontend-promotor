@@ -73,16 +73,16 @@ export function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-primary px-6">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-secondary px-6">
       <div className="w-full max-w-sm">
         <div className="mb-10 flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-card">
-            <MapPin className="h-8 w-8 text-primary" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-azul">
+            <MapPin className="h-8 w-8 text-verde" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-primary-foreground">
-            RotaCheck
+          <h1 className="text-2xl font-bold tracking-tight text-azul">
+            OFBR Promotores
           </h1>
-          <p className="text-sm text-primary-foreground/70">
+          <p className="text-sm text-azul">
             Gestão de visitas e rotas
           </p>
         </div>
@@ -147,7 +147,7 @@ export function LoginForm() {
             type="submit"
             size="lg"
             disabled={feedbackState === "loading"}
-            className="h-12 w-full text-base font-semibold"
+            className="h-12 w-full text-verde bg-azul font-semibold"
           >
             {feedbackState === "loading" ? (
               <>
@@ -160,7 +160,7 @@ export function LoginForm() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-primary-foreground/50">
+        <p className="mt-6 text-center text-xs text-azul/50">
           {"Versão 1.0.0"}
         </p>
       </div>

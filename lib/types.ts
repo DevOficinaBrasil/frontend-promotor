@@ -39,6 +39,10 @@ export interface OficinaAPI {
   ATIVO: string;
   CREATED_AT: string;
   UPDATED_AT: string;
+  cor_icone: string;
+  flag_engajamento: string;
+  flag_sentimento: string;
+  flag_treinamento: string;
 }
 
 export interface RotaAPI {
@@ -122,6 +126,10 @@ export interface Oficina {
   cidade: string;
   estado: string;
   distancia_km?: number;
+  cor_icone: string;
+  flag_engajamento: string;
+  flag_sentimento: string;
+  flag_treinamento: string;
 }
 
 export interface RotaPromotor {
