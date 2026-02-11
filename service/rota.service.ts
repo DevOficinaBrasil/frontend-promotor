@@ -18,7 +18,7 @@ export async function updateRota(
 /**
  * Helper: mark route as "A CAMINHO"
  */
-export function updateRotaACaminho(idRota: number,) {
+export function updateRotaACaminho(idRota: number) {
   return updateRota(
     idRota,
     { STATUS: "A CAMINHO" },
@@ -28,7 +28,7 @@ export function updateRotaACaminho(idRota: number,) {
 /**
  * Helper: mark route as "EM ANDAMENTO" with checkin time
  */
-export function updateRotaCheckin(idRota: number,) {
+export function updateRotaCheckin(idRota: number) {
   return updateRota(
     idRota,
     {
@@ -54,6 +54,20 @@ export function updateRotaFinalizado(
       DONE_AT: new Date().toISOString(),
       ...(obs ? { OBS: obs } : {}),
       ...(redirect ? { REDIRECT: redirect } : {}),
+    },
+  );
+}
+
+/**
+ * Helper: mark route as "CANCELADO"
+ */
+export function updateRotaCancelado(idRota: number) {
+  return updateRota(
+    idRota,
+    {
+      STATUS: "CANCELADO",
+      SUCCESS: false,
+      DONE_AT: new Date().toISOString(),
     },
   );
 }

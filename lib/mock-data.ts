@@ -131,24 +131,24 @@ export const mockPerguntas: CampanhaPerguntas[] = [
     id_perguntas: "q1",
     id_campanha: "c1",
     pergunta: "Qual a quantidade de oleo em estoque?",
-    tipo: "NUMERO",
+    tipo: "Integer",
   },
   {
     id_perguntas: "q2",
     id_campanha: "c1",
     pergunta: "O material promocional foi instalado?",
-    tipo: "SIM_NAO",
+    tipo: "Boolean",
   },
   {
     id_perguntas: "q3",
     id_campanha: "c1",
     pergunta: "Como esta a exposicao dos produtos?",
-    tipo: "TEXTO",
+    tipo: "String",
   },
   {
     id_perguntas: "q4",
     id_campanha: "c1",
     pergunta: "O responsavel da oficina estava presente?",
-    tipo: "SIM_NAO",
+    tipo: "Boolean",
   },
 ];
