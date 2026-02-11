@@ -14,16 +14,22 @@ interface RouteCarouselProps {
   rotas: RotaPromotor[];
   onNavigate: (rota: RotaPromotor) => void;
   onCheckin: (rota: RotaPromotor) => void;
+  onSurvey: (rota: RotaPromotor) => void;
+  onCancel: (rota: RotaPromotor) => void;
   isNavigating?: boolean;
   isCheckingIn?: boolean;
+  isCheckingInSurvey?: boolean;
 }
 
 export function RouteCarousel({
   rotas,
   onNavigate,
   onCheckin,
+  onSurvey,
+  onCancel,
   isNavigating,
   isCheckingIn,
+  isCheckingInSurvey,
 }: RouteCarouselProps) {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -63,10 +69,10 @@ export function RouteCarousel({
           </svg>
         </div>
         <p className="text-center text-base font-semibold text-card-foreground">
-          Todas as visitas concluidas!
+          Todas as visitas concluídas!
         </p>
         <p className="text-center text-sm text-muted-foreground">
-          Voce finalizou todas as oficinas da sua rota de hoje.
+          Você finalizou todas as oficinas da sua rota de hoje.
         </p>
       </div>
     );
@@ -89,8 +95,11 @@ export function RouteCarousel({
                 rota={rota}
                 onNavigate={onNavigate}
                 onCheckin={onCheckin}
+                onSurvey={onSurvey}
+                onCancel={onCancel}
                 isNavigating={isNavigating}
                 isCheckingIn={isCheckingIn}
+                isLoadingSurvey={isCheckingInSurvey}
               />
             </CarouselItem>
           ))}

@@ -7,7 +7,7 @@ export type RouteStatus =
 
 export type RedirectType = "SAC" | "VENDAS" | "LOGISTICA";
 
-export type QuestionType = "TEXTO" | "NUMERO" | "SIM_NAO" | "SELECAO";
+export type QuestionType = "String" | "Integer" | "Boolean" | "SELECAO";
 
 // --- API response types (casing matches backend) ---
 
@@ -71,6 +71,31 @@ export interface CampanhaAtivaResponse {
     CREATED_AT: string;
     UPDATED_AT: string;
     rotas: RotaAPI[];
+  };
+}
+
+// Nova interface para o detalhe da campanha (Perguntas)
+export interface CampanhaDetalheResponse {
+  message: string;
+  data: {
+    ID_CAMPANHA: number;
+    NOME: string;
+    OBJETIVO: string;
+    ID_CLIENT: number;
+    START_TIME: string;
+    END_TIME: string;
+    CREATED_BY: number;
+    CREATED_AT: string;
+    UPDATED_AT: string;
+    campanhaPerguntas: {
+      ID_PERGUNTAS: number; // API retorna number aqui baseado no JSON, ajustado
+      ID_CAMPANHA: number;
+      TIPO: string; // Vai precisar de cast para QuestionType
+      PERGUNTA: string;
+      CREATED_AT: string;
+      UPDATED_AT: string;
+    }[];
+    // Outros campos omitidos por brevidade se não usados
   };
 }
 

@@ -1,10 +1,12 @@
 import { api } from "./api";
 import type {
   CampanhaAtivaResponse,
+  CampanhaDetalheResponse,
   RotaPromotor,
   RotaAPI,
   Campanha,
-  Oficina,
+  CampanhaPerguntas,
+  QuestionType,
 } from "@/lib/types";
 
 function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
@@ -32,7 +34,6 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
       bairro: o.BAIRRO,
       cidade: o.CIDADE,
       estado: o.ESTADO,
-
     },
     campanha,
   };
@@ -54,8 +55,20 @@ export async function getCampanhaAtiva(
 
   const rotas = d.rotas.map((r) => normalizeRota(r, campanha));
 
-  console.log("Fetched campanha ativa:", campanha, rotas);
-  
-
   return { campanha, rotas };
+}
+
+export async function getCampanhaDetalhes(idCampanha: number): Promise<CampanhaPerguntas[]> {
+  const response = await api<CampanhaDetalheResponse>(`campanha/${idCampanha}`);
+  
+  if (!response.data || !response.data.campanhaPerguntas) {
+    return [];
+  }
+
+  return response.data.campanhaPerguntas.map((p) => ({
+    id_perguntas: p.ID_PERGUNTAS.toString(),
+    id_campanha: p.ID_CAMPANHA.toString(),
+    pergunta: p.PERGUNTA,
+    tipo: (p.TIPO as QuestionType) || "String", // Default to String if type is missing or unrecognized
+  }));
 }
