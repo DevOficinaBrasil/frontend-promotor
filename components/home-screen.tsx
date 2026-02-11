@@ -1,70 +1,87 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { RotaPromotor, CampanhaResult, CampanhaPerguntas } from "@/lib/types";
 import { mockRotas, mockPerguntas } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth-context";
-import { getCampanhaAtiva, getCampanhaDetalhes } from "@/service/campanha.service";
+import { getCampanhaAtiva, getCampanhaDetalhes, saveCampanhaResult } from "@/service/campanha.service";
 import { updateRotaACaminho, updateRotaCheckin, updateRotaFinalizado, updateRotaCancelado } from "@/service/rota.service";
 import { AppHeader } from "@/components/app-header";
 import { RouteCarousel } from "@/components/route-carousel";
 import { CheckinForm } from "@/components/checkin-form";
 import { RequestFeedback } from "@/components/request-feedback";
-import { GpsSelectionDialog } from "@/components/gps-dialog"; // Novo componente
+import { GpsSelectionDialog } from "@/components/gps-dialog";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ClipboardList, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, Loader2, XCircle, RefreshCw } from "lucide-react"; // RefreshCw adicionado
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 export function HomeScreen() {
   const { promotor } = useAuth();
   const [rotas, setRotas] = useState<RotaPromotor[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartY = useRef(0);
 
-  // Estados para navegação (GPS)
   const [gpsModalOpen, setGpsModalOpen] = useState(false);
   const [rotaParaNavegar, setRotaParaNavegar] = useState<RotaPromotor | null>(null);
 
-  // Estados para Pesquisa/Checkin
   const [selectedRotaForSurvey, setSelectedRotaForSurvey] = useState<RotaPromotor | null>(null);
   const [surveyQuestions, setSurveyQuestions] = useState<CampanhaPerguntas[]>([]);
   const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
 
-  // Estados para Cancelamento
   const [rotaParaCancelar, setRotaParaCancelar] = useState<RotaPromotor | null>(null);
+  const [obsCancelamento, setObsCancelamento] = useState("");
 
-  // Load campaign routes on mount
-  useEffect(() => {
-    async function loadRotas() {
-      if (process.env.NEXT_PUBLIC_API_URL && promotor) {
-        try {
-          const { rotas: apiRotas } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
-          setRotas(apiRotas);
-        } catch {
-          setRotas(mockRotas);
-        }
-      } else {
+  const loadRotas = useCallback(async () => {
+    setIsRefreshing(true);
+    if (process.env.NEXT_PUBLIC_API_URL && promotor) {
+      try {
+        const { rotas: apiRotas } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
+        setRotas(apiRotas);
+      } catch {
         setRotas(mockRotas);
       }
-      setInitialLoading(false);
+    } else {
+      setRotas(mockRotas);
     }
-    loadRotas();
+    setInitialLoading(false);
+    setIsRefreshing(false);
   }, [promotor]);
 
+  useEffect(() => {
+    loadRotas();
+  }, [loadRotas]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = async (e: React.TouchEvent) => {
+    if (window.scrollY === 0 && touchStartY.current > 0) {
+      const touchEndY = e.changedTouches[0].clientY;
+      if (touchEndY - touchStartY.current > 100 && !isRefreshing) {
+        await loadRotas();
+      }
+    }
+    touchStartY.current = 0;
+  };
+
   const pendingRotas = useMemo(
-    () =>
-      rotas
-        .filter((r) => r.status !== "FINALIZADO" && r.status !== "CANCELADO")
-        .sort((a, b) => (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999)),
+    () => rotas.filter((r) => r.status !== "FINALIZADO" && r.status !== "CANCELADO").sort((a, b) => (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999)),
     [rotas]
   );
 
@@ -73,194 +90,118 @@ export function HomeScreen() {
     [rotas]
   );
 
-  // -- 1. Navigate Logic --
-  // Primeiro abre o modal de GPS, depois atualiza o status
   const handleOpenGpsSelection = (rota: RotaPromotor) => {
     setRotaParaNavegar(rota);
     setGpsModalOpen(true);
   };
 
-  const navigateAction = useCallback(
-    async (app: "google" | "waze") => {
-      if (!rotaParaNavegar) return;
-      
-      const rota = rotaParaNavegar;
+  const navigateAction = useCallback(async (app: "google" | "waze") => {
+    if (!rotaParaNavegar) return;
+    const rota = rotaParaNavegar;
 
-      // Update status on backend
-      if (process.env.NEXT_PUBLIC_API_URL) {
-        try {
-          await updateRotaACaminho(rota.id_rota_promotor);
-        } catch (e) {
-          console.error("Failed to update status to A CAMINHO", e);
-        }
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      try {
+        await updateRotaACaminho(rota.id_rota_promotor);
+      } catch (e) {
+        console.error("Failed to update status", e);
       }
+    }
 
-      // Update local state
-      setRotas((prev) =>
-        prev.map((r) =>
-          r.id_rota_promotor === rota.id_rota_promotor
-            ? { ...r, status: "A CAMINHO" as const }
-            : r
-        )
-      );
+    setRotas((prev) =>
+      prev.map((r) => r.id_rota_promotor === rota.id_rota_promotor ? { ...r, status: "A CAMINHO" as const } : r)
+    );
 
-      // Open Maps
-      const destination = encodeURIComponent(rota.oficina.endereco);
-      let mapsUrl: string;
-      const localizacao = rota.oficina.localizacao; // Assuming "lat,lng"
+    const destination = encodeURIComponent(rota.oficina.endereco);
+    let mapsUrl: string;
+    const localizacao = rota.oficina.localizacao;
 
-      if (app === "waze") {
-        // Waze URL scheme
-        if (localizacao) {
-           mapsUrl = `https://waze.com/ul?ll=${localizacao}&navigate=yes`;
-        } else {
-           mapsUrl = `https://waze.com/ul?q=${destination}&navigate=yes`;
-        }
-      } else {
-        // Google Maps URL scheme
-        if (localizacao) {
-          mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${localizacao}&destination_place_id=${destination}&travelmode=driving`;
-        } else {
-          mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
-        }
-      }
-      
-      window.open(mapsUrl, "_blank");
-      
-      setGpsModalOpen(false);
-      setRotaParaNavegar(null);
-    },
-    [rotaParaNavegar]
-  );
+    if (app === "waze") {
+      mapsUrl = localizacao ? `https://waze.com/ul?ll=${localizacao}&navigate=yes` : `https://waze.com/ul?q=${destination}&navigate=yes`;
+    } else {
+      mapsUrl = localizacao ? `https://www.google.com/maps/dir/?api=1&destination=${localizacao}&destination_place_id=${destination}&travelmode=driving` : `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+    }
+    
+    window.open(mapsUrl, "_blank");
+    setGpsModalOpen(false);
+    setRotaParaNavegar(null);
+  }, [rotaParaNavegar]);
 
-  const {
-    execute: executeNavigate, // We invoke this from the Dialog
-  } = useAsyncAction(navigateAction, { delay: 500 }); // Pequeno delay só pra UX do clique
+  const { execute: executeNavigate } = useAsyncAction(navigateAction, { delay: 500 });
 
+  const checkinAction = useCallback(async (rota: RotaPromotor) => {
+    const checkinTime = new Date().toISOString();
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      await updateRotaCheckin(rota.id_rota_promotor);
+    }
+    setRotas((prev) =>
+      prev.map((r) => r.id_rota_promotor === rota.id_rota_promotor ? { ...r, status: "EM ANDAMENTO" as const, checkin_time: checkinTime } : r)
+    );
+    return rota;
+  }, []);
 
-  // -- 2. Check-in Logic --
-  // Apenas roda o update, não abre modal
-  const checkinAction = useCallback(
-    async (rota: RotaPromotor) => {
-      const checkinTime = new Date().toISOString();
-      if (process.env.NEXT_PUBLIC_API_URL) {
-        await updateRotaCheckin(rota.id_rota_promotor);
-      }
-      setRotas((prev) =>
-        prev.map((r) =>
-          r.id_rota_promotor === rota.id_rota_promotor
-            ? { ...r, status: "EM ANDAMENTO" as const, checkin_time: checkinTime }
-            : r
-        )
-      );
-      return rota;
-    },
-    []
-  );
-
-  const {
-    feedbackState: checkinFeedback,
-    execute: executeCheckinAction,
-    retry: retryCheckinAction,
-    reset: resetCheckinFeedback,
-  } = useAsyncAction(checkinAction, { delay: 1000, errorChance: 0 });
+  const { feedbackState: checkinFeedback, execute: executeCheckinAction, retry: retryCheckinAction, reset: resetCheckinFeedback } = useAsyncAction(checkinAction, { delay: 1000, errorChance: 0 });
 
   const handleCheckin = async (rota: RotaPromotor) => {
     await executeCheckinAction(rota);
-    // Não faz mais nada, o feedback cuida do resto e o botão muda para "Responder Pesquisa"
   };
 
+  const surveyAction = useCallback(async (rota: RotaPromotor) => {
+    let perguntas: CampanhaPerguntas[] = [];
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      perguntas = await getCampanhaDetalhes(rota.campanha.id_campanha);
+    } else {
+      perguntas = mockPerguntas;
+    }
+    setSurveyQuestions(perguntas);
+    return perguntas;
+  }, []);
 
-  // -- 3. Responder Pesquisa Logic --
-  // Busca perguntas -> Abre modal
-  const surveyAction = useCallback(
-    async (rota: RotaPromotor) => {
-      let perguntas: CampanhaPerguntas[] = [];
-      
-      if (process.env.NEXT_PUBLIC_API_URL) {
-        perguntas = await getCampanhaDetalhes(rota.id_campanha_promotor);
-      } else {
-        // Fallback mock
-        perguntas = mockPerguntas;
-      }
-      
-      setSurveyQuestions(perguntas);
-      return perguntas;
-    },
-    []
-  );
-
-  const {
-    feedbackState: surveyLoadingState,
-    execute: executeSurveyLoad,
-    reset: resetSurveyFeedback
-  } = useAsyncAction(surveyAction, { delay: 800 });
+  const { feedbackState: surveyLoadingState, execute: executeSurveyLoad, reset: resetSurveyFeedback } = useAsyncAction(surveyAction, { delay: 800 });
 
   const handleResponderPesquisa = async (rota: RotaPromotor) => {
     setSelectedRotaForSurvey(rota);
-    // Limpa perguntas anteriores para mostrar loading
     setSurveyQuestions([]); 
     setIsSurveyModalOpen(true);
-    
     await executeSurveyLoad(rota);
   };
 
-
-  // -- 4. Finalizar Visita (Submit do Modal) --
-  const handleSubmitSurvey = async (
-    rotaId: number,
-    _results: CampanhaResult[],
-    obs: string
-  ) => {
+  const handleSubmitSurvey = async (rotaId: number, results: CampanhaResult[], obs: string) => {
     const doneAt = new Date().toISOString();
     if (process.env.NEXT_PUBLIC_API_URL) {
       try {
+        await Promise.all(results.map(r => saveCampanhaResult({
+            ID_ROTA: r.id_rota,
+            ID_PERGUNTA: Number(r.id_pergunta),
+            RESPOSTA: r.resposta
+        })));
         await updateRotaFinalizado(rotaId, obs || undefined);
       } catch (error) {
         console.error("Erro ao finalizar rota", error);
-        throw error; // Propaga para o useAsyncAction pegar o erro
+        throw error;
       }
     }
     
-    // Atualiza estado local
     setRotas((prev) =>
-      prev.map((r) =>
-        r.id_rota_promotor === rotaId
-          ? { ...r, status: "FINALIZADO" as const, success: true, done_at: doneAt }
-          : r
-      )
+      prev.map((r) => r.id_rota_promotor === rotaId ? { ...r, status: "FINALIZADO" as const, success: true, done_at: doneAt } : r)
     );
-    
-    // Fecha modal
     setIsSurveyModalOpen(false);
     setSelectedRotaForSurvey(null);
   };
 
-
-  // -- 5. Cancelar Visita --
   const cancelAction = useCallback(async () => {
     if (!rotaParaCancelar) return;
-    
     if (process.env.NEXT_PUBLIC_API_URL) {
-      await updateRotaCancelado(rotaParaCancelar.id_rota_promotor);
+      await updateRotaCancelado(rotaParaCancelar.id_rota_promotor, obsCancelamento);
     }
 
     setRotas((prev) =>
-      prev.map((r) =>
-        r.id_rota_promotor === rotaParaCancelar.id_rota_promotor
-          ? { ...r, status: "CANCELADO" as const, done_at: new Date().toISOString() }
-          : r
-      )
+      prev.map((r) => r.id_rota_promotor === rotaParaCancelar.id_rota_promotor ? { ...r, status: "CANCELADO" as const, done_at: new Date().toISOString() } : r)
     );
     setRotaParaCancelar(null);
-  }, [rotaParaCancelar]);
+    setObsCancelamento("");
+  }, [rotaParaCancelar, obsCancelamento]);
 
-  const {
-    feedbackState: cancelFeedback,
-    execute: executeCancel,
-    reset: resetCancelFeedback
-  } = useAsyncAction(cancelAction, { delay: 1000 });
-
+  const { feedbackState: cancelFeedback, execute: executeCancel, reset: resetCancelFeedback } = useAsyncAction(cancelAction, { delay: 1000 });
 
   if (initialLoading) {
     return (
@@ -277,32 +218,50 @@ export function HomeScreen() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div 
+      className="flex min-h-dvh flex-col bg-background relative"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <AppHeader />
 
+      {/* Indicador de Swipe Refresh Animado no Topo */}
+      <div 
+        className={`absolute top-14 left-0 z-10 w-full flex items-center justify-center transition-all duration-300 ${
+          isRefreshing ? "translate-y-2 opacity-100" : "-translate-y-full opacity-0"
+        }`}
+      >
+        <div className="bg-background/90 backdrop-blur border shadow-sm rounded-full p-2">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        </div>
+      </div>
+
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-5">
-        {/* Stats */}
         <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
           <ClipboardList className="h-5 w-5 text-primary" />
-          <span className="text-sm font-medium text-card-foreground">
-            Visitas realizadas
-          </span>
+          <span className="text-sm font-medium text-card-foreground">Visitas realizadas</span>
           <span className="ml-auto text-lg font-bold text-card-foreground">
-            {completedCount}
-            <span className="text-muted-foreground">{"/"}</span>
-            {rotas.length}
+            {completedCount} <span className="text-muted-foreground">/</span> {rotas.length}
           </span>
         </div>
 
-        {/* Route section */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">
-              Sua rota de hoje
-            </h2>
-            <Badge variant="secondary" className="text-[10px]">
-              Ordenado por proximidade
-            </Badge>
+            <h2 className="text-sm font-semibold text-foreground">Sua rota de hoje</h2>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-[10px]">Ordenado por proximidade</Badge>
+              {/* Botão para atualizar manualmente caso o Pull-to-refresh falhe */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={loadRotas} 
+                disabled={isRefreshing}
+                className="h-7 w-7 text-muted-foreground hover:bg-muted"
+                aria-label="Atualizar rotas"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
           </div>
 
           <RouteCarousel
@@ -311,46 +270,26 @@ export function HomeScreen() {
             onCheckin={handleCheckin}
             onSurvey={handleResponderPesquisa}
             onCancel={(r) => setRotaParaCancelar(r)}
-            isNavigating={false} // Loading agora é no modal de GPS
+            isNavigating={false}
             isCheckingIn={checkinFeedback === "loading"}
             isCheckingInSurvey={surveyLoadingState === "loading" && isSurveyModalOpen}
           />
         </div>
 
-        {/* Completed section */}
         {completedCount > 0 && (
           <div className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-foreground">
-              Histórico do dia
-            </h2>
+            <h2 className="text-sm font-semibold text-foreground">Histórico do dia</h2>
             <div className="flex flex-col gap-2">
-              {rotas
-                .filter((r) => r.status === "FINALIZADO" || r.status === "CANCELADO")
-                .map((rota) => (
-                  <div
-                    key={rota.id_rota_promotor}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
-                  >
-                    {rota.status === "FINALIZADO" ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-                    ) : (
-                      <XCircle className="h-4 w-4 shrink-0 text-destructive" />
-                    )}
-                    
+              {rotas.filter((r) => r.status === "FINALIZADO" || r.status === "CANCELADO").map((rota) => (
+                  <div key={rota.id_rota_promotor} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+                    {rota.status === "FINALIZADO" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : <XCircle className="h-4 w-4 shrink-0 text-destructive" />}
                     <div className="flex flex-1 flex-col">
-                      <span className="text-sm font-medium text-card-foreground">
-                        {rota.oficina.nome}
-                      </span>
+                      <span className="text-sm font-medium text-card-foreground">{rota.oficina.nome}</span>
                       <span className="text-[10px] text-muted-foreground">
-                        {rota.done_at
-                          ? `${rota.status === 'FINALIZADO' ? 'Finalizado' : 'Cancelado'} às ${new Date(rota.done_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                          : "Concluído"}
+                        {rota.done_at ? `${rota.status === 'FINALIZADO' ? 'Finalizado' : 'Cancelado'} às ${new Date(rota.done_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Concluído"}
                       </span>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={`border-0 text-[10px] ${rota.status === 'FINALIZADO' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}
-                    >
+                    <Badge variant="secondary" className={`border-0 text-[10px] ${rota.status === 'FINALIZADO' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
                       {rota.status === 'FINALIZADO' ? 'Concluída' : 'Cancelada'}
                     </Badge>
                   </div>
@@ -360,31 +299,21 @@ export function HomeScreen() {
         )}
       </main>
 
-      {/* Modal de GPS */}
       <GpsSelectionDialog 
         open={gpsModalOpen}
         onSelect={(app) => executeNavigate(app)}
-        onCancel={() => {
-          setGpsModalOpen(false);
-          setRotaParaNavegar(null);
-        }}
+        onCancel={() => { setGpsModalOpen(false); setRotaParaNavegar(null); }}
       />
 
-      {/* Modal de Pesquisa */}
       <CheckinForm
         rota={selectedRotaForSurvey}
         perguntas={surveyQuestions}
         open={isSurveyModalOpen}
-        onClose={() => {
-          setIsSurveyModalOpen(false);
-          setSelectedRotaForSurvey(null);
-          resetSurveyFeedback();
-        }}
+        onClose={() => { setIsSurveyModalOpen(false); setSelectedRotaForSurvey(null); resetSurveyFeedback(); }}
         onSubmit={handleSubmitSurvey}
         isLoadingQuestions={surveyLoadingState === "loading"}
       />
 
-      {/* Feedback do Check-in (Apenas visual, sem bloquear fluxo) */}
       <RequestFeedback
         state={checkinFeedback}
         loadingMessage="Registrando check-in..."
@@ -395,36 +324,38 @@ export function HomeScreen() {
         autoCloseDuration={1200}
       />
 
-      {/* Dialog de Confirmação de Cancelamento */}
-      <AlertDialog open={!!rotaParaCancelar} onOpenChange={(open) => !open && setRotaParaCancelar(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar visita?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você tem certeza que deseja cancelar a visita na oficina <strong>{rotaParaCancelar?.oficina.nome}</strong>? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={(e) => {
-                e.preventDefault(); 
-                executeCancel(); 
-              }}
+      <Dialog open={!!rotaParaCancelar} onOpenChange={(open) => { if(!open) { setRotaParaCancelar(null); setObsCancelamento(""); }}}>
+        <DialogContent className="max-w-xs rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Cancelar visita</DialogTitle>
+            <DialogDescription>
+              Por que você está cancelando a visita na oficina <strong>{rotaParaCancelar?.oficina.nome}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4">
+            <Label>Observação (Obrigatório)</Label>
+            <Textarea 
+              placeholder="Motivo do cancelamento..."
+              value={obsCancelamento}
+              onChange={(e) => setObsCancelamento(e.target.value)}
+            />
+          </div>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button variant="ghost" onClick={() => { setRotaParaCancelar(null); setObsCancelamento(""); }}>Voltar</Button>
+            <Button 
+              onClick={(e) => { e.preventDefault(); executeCancel(); }}
+              disabled={!obsCancelamento.trim() || cancelFeedback === "loading"}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {cancelFeedback === "loading" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : "Sim, cancelar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {cancelFeedback === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Finalizar Visita (Cancelar)"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
-      {/* Feedback do Cancelamento (apenas erro/sucesso) */}
       <RequestFeedback
-        state={cancelFeedback === "loading" ? "idle" : cancelFeedback} // Loading é tratado no botão do Alert
-        successMessage="Visita cancelada."
+        state={cancelFeedback === "loading" ? "idle" : cancelFeedback}
+        successMessage="Visita cancelada e finalizada."
         errorMessage="Erro ao cancelar."
         onClose={resetCancelFeedback}
         autoCloseDuration={1500}

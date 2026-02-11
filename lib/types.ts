@@ -1,3 +1,4 @@
+// Em lib/types.ts
 export type RouteStatus =
   | "BACKLOG"
   | "A CAMINHO"
@@ -7,9 +8,8 @@ export type RouteStatus =
 
 export type RedirectType = "SAC" | "VENDAS" | "LOGISTICA";
 
-export type QuestionType = "String" | "Integer" | "Boolean" | "SELECAO";
-
-// --- API response types (casing matches backend) ---
+// Adicionado "Date" e "Image"
+export type QuestionType = "String" | "Integer" | "Boolean" | "SELECAO" | "Date" | "Image";
 
 export interface Promotor {
   ID_PROMOTOR: number;
@@ -74,7 +74,6 @@ export interface CampanhaAtivaResponse {
   };
 }
 
-// Nova interface para o detalhe da campanha (Perguntas)
 export interface CampanhaDetalheResponse {
   message: string;
   data: {
@@ -88,14 +87,13 @@ export interface CampanhaDetalheResponse {
     CREATED_AT: string;
     UPDATED_AT: string;
     campanhaPerguntas: {
-      ID_PERGUNTAS: number; // API retorna number aqui baseado no JSON, ajustado
+      ID_PERGUNTAS: number; 
       ID_CAMPANHA: number;
-      TIPO: string; // Vai precisar de cast para QuestionType
+      TIPO: string; 
       PERGUNTA: string;
       CREATED_AT: string;
       UPDATED_AT: string;
     }[];
-    // Outros campos omitidos por brevidade se não usados
   };
 }
 
@@ -107,8 +105,6 @@ export interface RotaUpdatePayload {
   OBS?: string;
   REDIRECT?: RedirectType;
 }
-
-// --- Internal normalized types (used in components) ---
 
 export interface Campanha {
   id_campanha: number;

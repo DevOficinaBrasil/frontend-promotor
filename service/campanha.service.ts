@@ -72,3 +72,11 @@ export async function getCampanhaDetalhes(idCampanha: number): Promise<CampanhaP
     tipo: (p.TIPO as QuestionType) || "String", // Default to String if type is missing or unrecognized
   }));
 }
+
+export async function saveCampanhaResult(payload: { ID_ROTA: number; ID_PERGUNTA: number; RESPOSTA: string }) {
+  console.log("Saving campanha result with payload:", payload);
+  return api("campanha-results/save", {
+    method: "POST",
+    body: payload,
+  });
+}

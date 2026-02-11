@@ -102,7 +102,7 @@ export function OficinaCard({
 
       <div className="flex items-start justify-between gap-2 pr-8">
         <div className="flex flex-1 flex-col gap-1">
-          <h3 className="text-base font-semibold text-card-foreground min-h-[3rem] line-clamp-2 leading-tight">
+          <h3 className="text-base font-semibold text-card-foreground min-h-[3rem] line-clamp-2 ">
             {rota.oficina.nome}
           </h3>
           <p className="text-xs text-muted-foreground">

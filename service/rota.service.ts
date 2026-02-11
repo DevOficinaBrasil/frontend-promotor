@@ -61,13 +61,16 @@ export function updateRotaFinalizado(
 /**
  * Helper: mark route as "CANCELADO"
  */
-export function updateRotaCancelado(idRota: number) {
+export function updateRotaCancelado(idRota: number, obs: string | null) {
   return updateRota(
     idRota,
     {
       STATUS: "CANCELADO",
       SUCCESS: false,
+      CHECKIN_TIME: new Date().toISOString(),
       DONE_AT: new Date().toISOString(),
+      OBS: obs || undefined,
     },
   );
 }
+
