@@ -51,10 +51,10 @@ export function HomeScreen() {
         const { rotas: apiRotas } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
         setRotas(apiRotas);
       } catch {
-        setRotas(mockRotas);
+        setRotas([]);
       }
     } else {
-      setRotas(mockRotas);
+      setRotas([]);
     }
     setInitialLoading(false);
     setIsRefreshing(false);

@@ -73,10 +73,10 @@ export function RouteCarousel({
           </svg>
         </div>
         <p className="text-center text-base font-semibold text-card-foreground">
-          Todas as visitas concluídas!
+          Sem visitas no momento!
         </p>
         <p className="text-center text-sm text-muted-foreground">
-          Você finalizou todas as oficinas da sua rota de hoje.
+          Você não tem visitas agendadas.
         </p>
       </div>
     );
