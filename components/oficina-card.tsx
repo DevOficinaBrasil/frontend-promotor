@@ -175,12 +175,6 @@ export function OficinaCard({
             {rota.oficina.endereco}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">
-            {rota.oficina.telefone}
-          </span>
-        </div>
       </div>
 
       <div className="mt-auto flex flex-col gap-4">
