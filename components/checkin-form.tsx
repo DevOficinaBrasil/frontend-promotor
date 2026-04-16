@@ -116,14 +116,14 @@ export function CheckinForm({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-h-[90dvh] max-w-sm overflow-y-auto rounded-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-sm overflow-y-auto rounded-xl sm:max-w-md md:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold font-display">
             <FileText className="h-4 w-4 text-primary" />
             Pesquisa de Visita
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            {rota?.oficina.nome} - {rota?.campanha.nome}
+          <DialogDescription className="text-xs text-muted-foreground">
+            {rota?.oficina.nome} — {rota?.campanha.nome}
           </DialogDescription>
         </DialogHeader>
 
@@ -203,6 +203,29 @@ export function CheckinForm({
                     </div>
                   </RadioGroup>
                 )}
+
+                {pergunta.tipo === "Multi" && pergunta.opcoes && (
+                  <RadioGroup
+                    value={(answers[pergunta.id_perguntas] as string) || ""}
+                    onValueChange={(val) => handleChange(pergunta.id_perguntas, val)}
+                    className="flex flex-col gap-2"
+                  >
+                    {pergunta.opcoes.map((opcao) => (
+                      <div key={opcao.id_opcao} className="flex items-center gap-2">
+                        <RadioGroupItem
+                          value={opcao.label}
+                          id={`${pergunta.id_perguntas}-${opcao.id_opcao}`}
+                        />
+                        <Label
+                          htmlFor={`${pergunta.id_perguntas}-${opcao.id_opcao}`}
+                          className="text-sm"
+                        >
+                          {opcao.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
               </div>
             ))}
 
@@ -220,7 +243,7 @@ export function CheckinForm({
               type="submit"
               size="lg"
               disabled={feedbackState === "loading" || (!allAnswered && perguntas.length > 0)}
-              className="h-12 w-full gap-2 text-sm font-semibold"
+              className="h-11 w-full gap-2 rounded-lg bg-azul text-sm font-semibold text-verde transition-all hover:bg-azul/90 active:scale-[0.98]"
             >
               {feedbackState === "loading" ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</>

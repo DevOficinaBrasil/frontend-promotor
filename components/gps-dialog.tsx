@@ -8,7 +8,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MapPin } from "lucide-react";
+import { Navigation } from "lucide-react";
 
 interface GpsSelectionDialogProps {
   open: boolean;
@@ -23,14 +23,14 @@ export function GpsSelectionDialog({
 }: GpsSelectionDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="max-w-xs rounded-2xl p-6">
+      <DialogContent className="max-w-xs rounded-xl p-6 sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-center text-lg">
-            <MapPin className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-lg font-bold font-display">
+            <Navigation className="h-5 w-5 text-primary" />
             Escolha o GPS
           </DialogTitle>
-          <DialogDescription className="text-center text-sm">
-            Selecione qual aplicativo deseja usar para navegar até a oficina.
+          <DialogDescription className="text-sm text-muted-foreground">
+            Selecione o app de navegação para ir até a oficina.
           </DialogDescription>
         </DialogHeader>
 
@@ -38,7 +38,7 @@ export function GpsSelectionDialog({
           <Button
             variant="outline"
             size="lg"
-            className="w-full gap-2 border-primary/20 hover:bg-primary/5"
+            className="w-full gap-2 rounded-lg border-border transition-all hover:border-primary/30 hover:bg-primary/5"
             onClick={() => onSelect("google")}
           >
             <svg
@@ -55,7 +55,7 @@ export function GpsSelectionDialog({
           <Button
             variant="outline"
             size="lg"
-            className="w-full gap-2 border-primary/20 hover:bg-primary/5"
+            className="w-full gap-2 rounded-lg border-border transition-all hover:border-primary/30 hover:bg-primary/5"
             onClick={() => onSelect("waze")}
           >
             <svg
@@ -70,7 +70,7 @@ export function GpsSelectionDialog({
             Waze
           </Button>
 
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="ghost" onClick={onCancel} className="text-muted-foreground">
             Cancelar
           </Button>
         </div>

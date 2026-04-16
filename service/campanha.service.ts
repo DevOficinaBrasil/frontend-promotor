@@ -7,6 +7,7 @@ import type {
   Campanha,
   CampanhaPerguntas,
   QuestionType,
+  EstrategiaOrdenacao,
 } from "@/lib/types";
 
 function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
@@ -15,6 +16,16 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
     .filter(Boolean)
     .join(", ");
 
+  // Extrair lat/lon de LOCALIZACAO (formato "lat,lon")
+  let latitude: number | undefined;
+  let longitude: number | undefined;
+  if (o.LOCALIZACAO) {
+    const parts = o.LOCALIZACAO.split(",").map(Number);
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      latitude = parts[0];
+      longitude = parts[1];
+    }
+  }
 
   return {
     id_rota_promotor: rota.ID_ROTA_PROMOTOR,
@@ -26,6 +37,7 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
     done_at: rota.DONE_AT || null,
     obs: rota.OBS || null,
     redirect: rota.REDIRECT || null,
+    ordem: rota.ORDEM ?? null,
     oficina: {
       id_oficina: o.ID_OFICINA,
       nome: o.NOME_FANTASIA,
@@ -35,6 +47,8 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
       bairro: o.BAIRRO,
       cidade: o.CIDADE,
       estado: o.ESTADO,
+      latitude,
+      longitude,
       cor_icone: o.cor_icone,
       flag_engajamento: o.flag_engajamento,
       flag_sentimento: o.flag_sentimento,
@@ -46,7 +60,7 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
 
 export async function getCampanhaAtiva(
   idPromotor: number,
-): Promise<{ campanha: Campanha; rotas: RotaPromotor[] }> {
+): Promise<{ campanha: Campanha; rotas: RotaPromotor[]; estrategiaOrdenacao: EstrategiaOrdenacao }> {
   const response = await api<CampanhaAtivaResponse>(
     `campanha/ativa?ID_PROMOTOR=${idPromotor}`
   );
@@ -60,7 +74,11 @@ export async function getCampanhaAtiva(
 
   const rotas = d.rotas.map((r) => normalizeRota(r, campanha));
 
-  return { campanha, rotas };
+  return {
+    campanha,
+    rotas,
+    estrategiaOrdenacao: d.ESTRATEGIA_ORDENACAO || 'PROXIMIDADE_PROMOTOR',
+  };
 }
 
 export async function getCampanhaDetalhes(idCampanha: number): Promise<CampanhaPerguntas[]> {
@@ -74,7 +92,10 @@ export async function getCampanhaDetalhes(idCampanha: number): Promise<CampanhaP
     id_perguntas: p.ID_PERGUNTAS.toString(),
     id_campanha: p.ID_CAMPANHA.toString(),
     pergunta: p.PERGUNTA,
-    tipo: (p.TIPO as QuestionType) || "String", // Default to String if type is missing or unrecognized
+    tipo: (p.TIPO as QuestionType) || "String",
+    opcoes: p.opcoes
+      ?.sort((a, b) => a.ORDEM - b.ORDEM)
+      .map((o) => ({ id_opcao: o.ID_OPCAO, label: o.LABEL, ordem: o.ORDEM })),
   }));
 }
 
