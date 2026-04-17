@@ -6,10 +6,12 @@ export type RouteStatus =
   | "FINALIZADO"
   | "CANCELADO";
 
+export type EstrategiaOrdenacao = "ROTA_OTIMIZADA" | "MANUAL" | "PROXIMIDADE_PROMOTOR";
+
 export type RedirectType = "SAC" | "VENDAS" | "LOGISTICA";
 
-// Adicionado "Date" e "Image"
-export type QuestionType = "String" | "Integer" | "Boolean" | "SELECAO" | "Date" | "Image";
+// Adicionado "Date", "Image" e "Multi"
+export type QuestionType = "String" | "Integer" | "Boolean" | "SELECAO" | "Date" | "Image" | "Multi";
 
 export interface Promotor {
   ID_PROMOTOR: number;
@@ -55,6 +57,7 @@ export interface RotaAPI {
   DONE_AT: string;
   OBS: string;
   REDIRECT: RedirectType;
+  ORDEM: number | null;
   CREATED_BY: number;
   CREATED_AT: string;
   UPDATED_AT: string;
@@ -74,6 +77,7 @@ export interface CampanhaAtivaResponse {
     CREATED_BY: number;
     CREATED_AT: string;
     UPDATED_AT: string;
+    ESTRATEGIA_ORDENACAO: EstrategiaOrdenacao;
     rotas: RotaAPI[];
   };
 }
@@ -97,6 +101,7 @@ export interface CampanhaDetalheResponse {
       PERGUNTA: string;
       CREATED_AT: string;
       UPDATED_AT: string;
+      opcoes?: { ID_OPCAO: number; LABEL: string; ORDEM: number }[];
     }[];
   };
 }
@@ -126,6 +131,8 @@ export interface Oficina {
   cidade: string;
   estado: string;
   distancia_km?: number;
+  latitude?: number;
+  longitude?: number;
   cor_icone: string;
   flag_engajamento: string;
   flag_sentimento: string;
@@ -142,8 +149,15 @@ export interface RotaPromotor {
   done_at: string | null;
   obs: string | null;
   redirect: RedirectType | null;
+  ordem: number | null;
   oficina: Oficina;
   campanha: Campanha;
+}
+
+export interface PerguntaOpcao {
+  id_opcao: number;
+  label: string;
+  ordem: number;
 }
 
 export interface CampanhaPerguntas {
@@ -151,6 +165,7 @@ export interface CampanhaPerguntas {
   id_campanha: string;
   pergunta: string;
   tipo: QuestionType;
+  opcoes?: PerguntaOpcao[];
 }
 
 export interface CampanhaResult {

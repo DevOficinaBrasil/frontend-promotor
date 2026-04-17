@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import type { RotaPromotor, CampanhaResult, CampanhaPerguntas } from "@/lib/types";
+import type { RotaPromotor, CampanhaResult, CampanhaPerguntas, EstrategiaOrdenacao } from "@/lib/types";
 import { mockRotas, mockPerguntas } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth-context";
 import { getCampanhaAtiva, getCampanhaDetalhes, saveCampanhaResult } from "@/service/campanha.service";
+import { haversine } from "@/lib/haversine";
 import { updateRotaACaminho, updateRotaCheckin, updateRotaFinalizado, updateRotaCancelado } from "@/service/rota.service";
 import { AppHeader } from "@/components/app-header";
 import { RouteCarousel } from "@/components/route-carousel";
@@ -13,7 +14,7 @@ import { RequestFeedback } from "@/components/request-feedback";
 import { GpsSelectionDialog } from "@/components/gps-dialog";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ClipboardList, Loader2, XCircle, RefreshCw } from "lucide-react"; // RefreshCw adicionado
+import { CheckCircle2, ClipboardList, Loader2, XCircle, RefreshCw, TrendingUp, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,8 @@ import { Button } from "@/components/ui/button";
 export function HomeScreen() {
   const { promotor } = useAuth();
   const [rotas, setRotas] = useState<RotaPromotor[]>([]);
+  const [estrategia, setEstrategia] = useState<EstrategiaOrdenacao>('PROXIMIDADE_PROMOTOR');
+  const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -48,8 +51,17 @@ export function HomeScreen() {
     setIsRefreshing(true);
     if (process.env.NEXT_PUBLIC_API_URL && promotor) {
       try {
-        const { rotas: apiRotas } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
+        const { rotas: apiRotas, estrategiaOrdenacao } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
         setRotas(apiRotas);
+        setEstrategia(estrategiaOrdenacao);
+
+        // Se for PROXIMIDADE_PROMOTOR, pedir geolocalização
+        if (estrategiaOrdenacao === 'PROXIMIDADE_PROMOTOR' && !userCoords) {
+          navigator.geolocation?.getCurrentPosition(
+            (pos) => setUserCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+            () => {/* silencioso se negar */}
+          );
+        }
       } catch {
         setRotas([]);
       }
@@ -58,7 +70,7 @@ export function HomeScreen() {
     }
     setInitialLoading(false);
     setIsRefreshing(false);
-  }, [promotor]);
+  }, [promotor, userCoords]);
 
   useEffect(() => {
     loadRotas();
@@ -80,10 +92,29 @@ export function HomeScreen() {
     touchStartY.current = 0;
   };
 
-  const pendingRotas = useMemo(
-    () => rotas.filter((r) => r.status !== "FINALIZADO" && r.status !== "CANCELADO").sort((a, b) => (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999)),
-    [rotas]
-  );
+  const pendingRotas = useMemo(() => {
+    const filtered = rotas.filter((r) => r.status !== "FINALIZADO" && r.status !== "CANCELADO");
+
+    if (estrategia === 'ROTA_OTIMIZADA' || estrategia === 'MANUAL') {
+      // Ordenar por ORDEM (definido pelo backend)
+      return filtered.sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999));
+    }
+
+    // PROXIMIDADE_PROMOTOR: ordenar por distância ao promotor via GPS
+    if (userCoords) {
+      return filtered.sort((a, b) => {
+        const distA = (a.oficina.latitude && a.oficina.longitude)
+          ? haversine(userCoords.lat, userCoords.lon, a.oficina.latitude, a.oficina.longitude)
+          : 9999;
+        const distB = (b.oficina.latitude && b.oficina.longitude)
+          ? haversine(userCoords.lat, userCoords.lon, b.oficina.latitude, b.oficina.longitude)
+          : 9999;
+        return distA - distB;
+      });
+    }
+
+    return filtered.sort((a, b) => (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999));
+  }, [rotas, estrategia, userCoords]);
 
   const completedCount = useMemo(
     () => rotas.filter((r) => r.status === "FINALIZADO" || r.status === "CANCELADO").length,
@@ -208,9 +239,11 @@ export function HomeScreen() {
       <div className="flex min-h-dvh flex-col bg-background">
         <AppHeader />
         <div className="flex flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Carregando sua rota...</p>
+          <div className="flex flex-col items-center gap-3 animate-fade-in-up">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">Carregando sua rota...</p>
           </div>
         </div>
       </div>
@@ -225,44 +258,82 @@ export function HomeScreen() {
     >
       <AppHeader />
 
-      {/* Indicador de Swipe Refresh Animado no Topo */}
+      {/* Pull-to-refresh indicator */}
       <div 
-        className={`absolute top-14 left-0 z-10 w-full flex items-center justify-center transition-all duration-300 ${
+        className={`absolute top-14 left-0 z-10 w-full flex items-center justify-center transition-all duration-300 md:top-16 ${
           isRefreshing ? "translate-y-2 opacity-100" : "-translate-y-full opacity-0"
         }`}
       >
-        <div className="bg-background/90 backdrop-blur border shadow-sm rounded-full p-2">
+        <div className="bg-card border shadow-sm rounded-full p-2">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
       </div>
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-5">
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-          <ClipboardList className="h-5 w-5 text-primary" />
-          <span className="text-sm font-medium text-card-foreground">Visitas realizadas</span>
-          <span className="ml-auto text-lg font-bold text-card-foreground">
-            {completedCount} <span className="text-muted-foreground">/</span> {rotas.length}
-          </span>
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 md:gap-8 md:px-8 md:py-8 lg:px-12">
+        {/* Stats bar */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in-up">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 rounded-xl bg-card border border-border px-4 py-3 md:px-5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/8">
+                <ClipboardList className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Visitas</span>
+                <span className="text-lg font-bold text-foreground">
+                  {completedCount}<span className="text-muted-foreground font-normal">/{rotas.length}</span>
+                </span>
+              </div>
+            </div>
+
+            {pendingRotas.length > 0 && (
+              <div className="hidden items-center gap-3 rounded-xl bg-card border border-border px-4 py-3 md:flex md:px-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning/10">
+                  <Clock className="h-4 w-4 text-warning" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Pendentes</span>
+                  <span className="text-lg font-bold text-foreground">{pendingRotas.length}</span>
+                </div>
+              </div>
+            )}
+
+            {completedCount > 0 && (
+              <div className="hidden items-center gap-3 rounded-xl bg-card border border-border px-4 py-3 md:flex md:px-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10">
+                  <TrendingUp className="h-4 w-4 text-success" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Progresso</span>
+                  <span className="text-lg font-bold text-foreground">
+                    {rotas.length > 0 ? Math.round((completedCount / rotas.length) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-[10px] font-medium">
+              {estrategia === 'ROTA_OTIMIZADA' ? 'Rota otimizada' : estrategia === 'MANUAL' ? 'Ordem manual' : 'Por proximidade'}
+            </Badge>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={loadRotas} 
+              disabled={isRefreshing}
+              className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5"
+              aria-label="Atualizar rotas"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Sua rota de hoje</h2>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-[10px]">Ordenado por proximidade</Badge>
-              {/* Botão para atualizar manualmente caso o Pull-to-refresh falhe */}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={loadRotas} 
-                disabled={isRefreshing}
-                className="h-7 w-7 text-muted-foreground hover:bg-muted"
-                aria-label="Atualizar rotas"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-          </div>
+        {/* Route section */}
+        <section className="flex flex-col gap-3" style={{ animationDelay: '80ms' }}>
+          <h2 className="text-base font-bold text-foreground font-display md:text-lg">
+            Sua rota de hoje
+          </h2>
 
           <RouteCarousel
             rotas={pendingRotas}
@@ -274,28 +345,42 @@ export function HomeScreen() {
             isCheckingIn={checkinFeedback === "loading"}
             isCheckingInSurvey={surveyLoadingState === "loading" && isSurveyModalOpen}
           />
-        </div>
+        </section>
 
+        {/* History section */}
         {completedCount > 0 && (
-          <div className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-foreground">Histórico do dia</h2>
-            <div className="flex flex-col gap-2">
+          <section className="flex flex-col gap-3 animate-fade-in-up" style={{ animationDelay: '160ms' }}>
+            <h2 className="text-base font-bold text-foreground font-display md:text-lg">
+              Histórico do dia
+            </h2>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
               {rotas.filter((r) => r.status === "FINALIZADO" || r.status === "CANCELADO").map((rota) => (
-                  <div key={rota.id_rota_promotor} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-                    {rota.status === "FINALIZADO" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : <XCircle className="h-4 w-4 shrink-0 text-destructive" />}
-                    <div className="flex flex-1 flex-col">
-                      <span className="text-sm font-medium text-card-foreground">{rota.oficina.nome}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {rota.done_at ? `${rota.status === 'FINALIZADO' ? 'Finalizado' : 'Cancelado'} às ${new Date(rota.done_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Concluído"}
-                      </span>
+                <div
+                  key={rota.id_rota_promotor}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
+                >
+                  {rota.status === "FINALIZADO" ? (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success/10">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
                     </div>
-                    <Badge variant="secondary" className={`border-0 text-[10px] ${rota.status === 'FINALIZADO' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                      {rota.status === 'FINALIZADO' ? 'Concluída' : 'Cancelada'}
-                    </Badge>
+                  ) : (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-destructive/10">
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    </div>
+                  )}
+                  <div className="flex flex-1 flex-col min-w-0">
+                    <span className="text-sm font-medium text-foreground truncate">{rota.oficina.nome}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {rota.done_at ? `${rota.status === 'FINALIZADO' ? 'Finalizado' : 'Cancelado'} às ${new Date(rota.done_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Concluído"}
+                    </span>
                   </div>
-                ))}
+                  <Badge variant="secondary" className={`shrink-0 border-0 text-[10px] ${rota.status === 'FINALIZADO' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                    {rota.status === 'FINALIZADO' ? 'Concluída' : 'Cancelada'}
+                  </Badge>
+                </div>
+              ))}
             </div>
-          </div>
+          </section>
         )}
       </main>
 
@@ -325,7 +410,7 @@ export function HomeScreen() {
       />
 
       <Dialog open={!!rotaParaCancelar} onOpenChange={(open) => { if(!open) { setRotaParaCancelar(null); setObsCancelamento(""); }}}>
-        <DialogContent className="max-w-xs rounded-2xl">
+        <DialogContent className="max-w-xs rounded-xl sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Cancelar visita</DialogTitle>
             <DialogDescription>
