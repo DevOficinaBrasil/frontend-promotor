@@ -41,6 +41,7 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
     oficina: {
       id_oficina: o.ID_OFICINA,
       nome: o.NOME_FANTASIA,
+      cnpj: o.CNPJ,
       endereco,
       telefone: o.TELEFONE,
       localizacao: o.LOCALIZACAO,

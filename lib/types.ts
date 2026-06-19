@@ -137,6 +137,7 @@ export interface Oficina {
   flag_engajamento: string;
   flag_sentimento: string;
   flag_treinamento: string;
+  cnpj: string;
 }
 
 export interface RotaPromotor {

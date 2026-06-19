@@ -8,6 +8,7 @@ import {
   MapPin,
   Phone,
   ClipboardCheck,
+  Copy,
   CheckCircle2,
   Loader2,
   FileText,
@@ -19,6 +20,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 interface OficinaCardProps {
   rota: RotaPromotor;
@@ -171,6 +173,24 @@ export function OficinaCard({
           <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             {rota.oficina.endereco}
           </span>
+        </div>
+
+        <div className="flex items-start gap-2">
+          <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {"CNPJ: " + rota.oficina.cnpj}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(String(rota.oficina.cnpj ?? ""));
+              toast.success("CNPJ copiado para a área de transferência");
+            }}
+            className="rounded-sm p-1 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Copiar CNPJ"
+            title="Copiar CNPJ"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         {/* Bottom section */}

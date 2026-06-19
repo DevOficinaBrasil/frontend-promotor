@@ -1,6 +1,7 @@
 import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Plus_Jakarta_Sans } from 'next/font/google'
+import { Toaster } from 'sonner'
 
 import './globals.css'
 
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${dmSans.variable} ${jakarta.variable} font-sans antialiased`}>
         {children}
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   )
