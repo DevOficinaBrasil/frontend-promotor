@@ -63,6 +63,8 @@ export interface RotaAPI {
   UPDATED_AT: string;
   DELETED_AT: string;
   oficina: OficinaAPI;
+  // Opcional: rota sem linha em NOTIFICACAO_VISITA e rota legada não trazem o campo.
+  notificacaoVisita?: { STATUS: string; CONFIRMADO_EM?: string | null };
 }
 
 export interface CampanhaAtivaResponse {
@@ -153,6 +155,7 @@ export interface RotaPromotor {
   ordem: number | null;
   oficina: Oficina;
   campanha: Campanha;
+  notificacao_visita?: { status: string; confirmado_em: string | null };
 }
 
 export interface PerguntaOpcao {
