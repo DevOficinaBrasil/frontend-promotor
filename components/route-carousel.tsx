@@ -32,7 +32,7 @@ const confirmacaoConfig: Record<
     Icon: Clock,
   },
   "nao-recebe": {
-    label: "Não recebe",
+    label: "Sem confirmação",
     title: "O envio falhou ou o link de confirmação expirou",
     className: "bg-destructive/10 text-destructive",
     Icon: XCircle,
