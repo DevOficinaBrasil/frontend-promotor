@@ -20,20 +20,23 @@ const confirmacaoConfig: Record<
   { label: string; title: string; className: string; Icon: typeof CheckCircle2 }
 > = {
   confirmada: {
-    label: "Confirmada",
+    label: "Visita confirmada",
     title: "A oficina confirmou a visita",
     className: "bg-success/10 text-success",
     Icon: CheckCircle2,
   },
   pendente: {
-    label: "Pendente",
-    title: "Aguardando a confirmação da oficina",
+    // O rótulo nomeia o sujeito ("confirmação", não "visita") porque este badge
+    // fica em cima do OficinaCard, que já mostra o estado da visita — "Pendente"
+    // sozinho lia como visita não realizada.
+    label: "Confirmação da oficina pendente",
+    title: "A oficina ainda não confirmou esta visita",
     className: "bg-warning/15 text-warning",
     Icon: Clock,
   },
   "nao-recebe": {
-    label: "Sem confirmação",
-    title: "O envio falhou ou o link de confirmação expirou",
+    label: "Confirmação da oficina não recebida",
+    title: "O link de confirmação expirou ou o envio falhou",
     className: "bg-destructive/10 text-destructive",
     Icon: XCircle,
   },
