@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import type { RotaPromotor } from "@/lib/types";
+import {
+  mapStatusConfirmacao,
+  type EstadoConfirmacao,
+} from "@/lib/statusConfirmacao";
 import { OficinaCard } from "@/components/oficina-card";
 import {
   Carousel,
@@ -9,6 +14,60 @@ import {
   CarouselItem,
   type CarouselApi,
 } from "@/components/ui/carousel";
+
+const confirmacaoConfig: Record<
+  EstadoConfirmacao,
+  { label: string; title: string; className: string; Icon: typeof CheckCircle2 }
+> = {
+  confirmada: {
+    label: "Visita confirmada",
+    title: "A oficina confirmou a visita",
+    className: "bg-success/10 text-success",
+    Icon: CheckCircle2,
+  },
+  pendente: {
+    // O rótulo nomeia o sujeito ("confirmação", não "visita") porque este badge
+    // fica em cima do OficinaCard, que já mostra o estado da visita — "Pendente"
+    // sozinho lia como visita não realizada.
+    label: "Confirmação da oficina pendente",
+    title: "A oficina ainda não confirmou esta visita",
+    className: "bg-warning/15 text-warning",
+    Icon: Clock,
+  },
+  "nao-recebe": {
+    label: "Confirmação da oficina não recebida",
+    title: "O link de confirmação expirou ou o envio falhou",
+    className: "bg-destructive/10 text-destructive",
+    Icon: XCircle,
+  },
+};
+
+function formatarData(valor: string): string | null {
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return null;
+  return data.toLocaleDateString("pt-BR");
+}
+
+function StatusConfirmacao({ rota }: { rota: RotaPromotor }) {
+  const estado = mapStatusConfirmacao(rota.notificacao_visita?.status);
+  if (!estado) return null;
+
+  const { label, title, className, Icon } = confirmacaoConfig[estado];
+  const data =
+    estado === "confirmada" && rota.notificacao_visita?.confirmado_em
+      ? formatarData(rota.notificacao_visita.confirmado_em)
+      : null;
+
+  return (
+    <span
+      title={title}
+      className={`inline-flex w-fit shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`}
+    >
+      <Icon className="h-3 w-3" />
+      {data ? `${label} em ${data}` : label}
+    </span>
+  );
+}
 
 interface RouteCarouselProps {
   rotas: RotaPromotor[];
@@ -96,6 +155,15 @@ export function RouteCarousel({
     isAnyRouteActive: temRotaAtiva,
   });
 
+  const cardComStatus = (rota: RotaPromotor) => (
+    <div className="flex h-full flex-col gap-1.5">
+      <StatusConfirmacao rota={rota} />
+      <div className="min-h-0 flex-1">
+        <OficinaCard {...cardProps(rota)} />
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       {/* Mobile: carousel */}
@@ -111,7 +179,7 @@ export function RouteCarousel({
           <CarouselContent className="-ml-3">
             {rotas.map((rota) => (
               <CarouselItem key={rota.id_rota_promotor} className="pl-3 basis-[88%] xs:basis-[80%]">
-                <OficinaCard {...cardProps(rota)} />
+                {cardComStatus(rota)}
               </CarouselItem>
             ))}
           </CarouselContent>
@@ -139,7 +207,7 @@ export function RouteCarousel({
       {/* Tablet/Desktop: grid */}
       <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {rotas.map((rota) => (
-          <OficinaCard key={rota.id_rota_promotor} {...cardProps(rota)} />
+          <div key={rota.id_rota_promotor}>{cardComStatus(rota)}</div>
         ))}
       </div>
     </div>

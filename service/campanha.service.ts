@@ -10,7 +10,7 @@ import type {
   EstrategiaOrdenacao,
 } from "@/lib/types";
 
-function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
+export function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
   const o = rota.oficina;
   const endereco = [o.ENDERECO, o.NUMERO, o.BAIRRO, o.CIDADE, o.ESTADO]
     .filter(Boolean)
@@ -56,6 +56,15 @@ function normalizeRota(rota: RotaAPI, campanha: Campanha): RotaPromotor {
       flag_treinamento: o.flag_treinamento,
     },
     campanha,
+    // Sem o campo na API a chave é omitida, não vira objeto vazio.
+    ...(rota.notificacaoVisita
+      ? {
+          notificacao_visita: {
+            status: rota.notificacaoVisita.STATUS,
+            confirmado_em: rota.notificacaoVisita.CONFIRMADO_EM ?? null,
+          },
+        }
+      : {}),
   };
 }
 
