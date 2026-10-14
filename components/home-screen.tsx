@@ -44,6 +44,8 @@ export function HomeScreen() {
   const [surveyQuestions, setSurveyQuestions] = useState<CampanhaPerguntas[]>([]);
   const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
 
+  const [rotaParaEncerrar, setRotaParaEncerrar] = useState<RotaPromotor | null>(null);
+
   const [rotaParaCancelar, setRotaParaCancelar] = useState<RotaPromotor | null>(null);
   const [obsCancelamento, setObsCancelamento] = useState("");
 
@@ -52,7 +54,15 @@ export function HomeScreen() {
     if (process.env.NEXT_PUBLIC_API_URL && promotor) {
       try {
         const { rotas: apiRotas, estrategiaOrdenacao } = await getCampanhaAtiva(promotor.ID_PROMOTOR);
-        setRotas(apiRotas);
+        // Histórico diário: concluídas/canceladas de dias anteriores não aparecem
+        const hoje = new Date().toDateString();
+        setRotas(
+          apiRotas.filter(
+            (r) =>
+              (r.status !== "FINALIZADO" && r.status !== "CANCELADO") ||
+              (r.done_at && new Date(r.done_at).toDateString() === hoje)
+          )
+        );
         setEstrategia(estrategiaOrdenacao);
 
         // Se for PROXIMIDADE_PROMOTOR, pedir geolocalização
@@ -190,10 +200,18 @@ export function HomeScreen() {
   const { feedbackState: surveyLoadingState, execute: executeSurveyLoad, reset: resetSurveyFeedback } = useAsyncAction(surveyAction, { delay: 800 });
 
   const handleResponderPesquisa = async (rota: RotaPromotor) => {
+    setSurveyQuestions([]);
+    const { ok, result } = await executeSurveyLoad(rota);
+    if (!ok) return;
+
+    if (!result || result.length === 0) {
+      // Campanha sem perguntas: apenas confirmar o encerramento
+      setRotaParaEncerrar(rota);
+      return;
+    }
+
     setSelectedRotaForSurvey(rota);
-    setSurveyQuestions([]); 
     setIsSurveyModalOpen(true);
-    await executeSurveyLoad(rota);
   };
 
   const handleSubmitSurvey = async (rotaId: number, results: CampanhaResult[], obs: string) => {
@@ -218,6 +236,14 @@ export function HomeScreen() {
     setIsSurveyModalOpen(false);
     setSelectedRotaForSurvey(null);
   };
+
+  const encerrarAction = useCallback(async () => {
+    if (!rotaParaEncerrar) return;
+    await handleSubmitSurvey(rotaParaEncerrar.id_rota_promotor, [], "");
+    setRotaParaEncerrar(null);
+  }, [rotaParaEncerrar]);
+
+  const { feedbackState: encerrarFeedback, execute: executeEncerrar, reset: resetEncerrarFeedback } = useAsyncAction(encerrarAction, { delay: 500 });
 
   const cancelAction = useCallback(async () => {
     if (!rotaParaCancelar) return;
@@ -343,7 +369,7 @@ export function HomeScreen() {
             onCancel={(r) => setRotaParaCancelar(r)}
             isNavigating={false}
             isCheckingIn={checkinFeedback === "loading"}
-            isCheckingInSurvey={surveyLoadingState === "loading" && isSurveyModalOpen}
+            isCheckingInSurvey={surveyLoadingState === "loading"}
           />
         </section>
 
@@ -409,7 +435,38 @@ export function HomeScreen() {
         autoCloseDuration={1200}
       />
 
-      <Dialog open={!!rotaParaCancelar} onOpenChange={(open) => { if(!open) { setRotaParaCancelar(null); setObsCancelamento(""); }}}>
+      <RequestFeedback
+        state={surveyLoadingState === "error" ? "error" : "idle"}
+        errorMessage="Falha ao carregar as perguntas da campanha."
+        onClose={resetSurveyFeedback}
+      />
+
+      <Dialog open={!!rotaParaEncerrar} onOpenChange={(open) => { if (!open && encerrarFeedback !== "loading") setRotaParaEncerrar(null); }}>
+        <DialogContent className="max-w-xs rounded-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Encerrar visita</DialogTitle>
+            <DialogDescription>
+              Deseja encerrar a visita na oficina <strong>{rotaParaEncerrar?.oficina.nome}</strong>? Esta campanha não possui perguntas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button variant="ghost" disabled={encerrarFeedback === "loading"} onClick={() => setRotaParaEncerrar(null)}>Voltar</Button>
+            <Button onClick={() => executeEncerrar()} disabled={encerrarFeedback === "loading"}>
+              {encerrarFeedback === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Encerrar visita"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RequestFeedback
+        state={encerrarFeedback === "loading" ? "idle" : encerrarFeedback}
+        successMessage="Visita encerrada."
+        errorMessage="Erro ao encerrar a visita."
+        onClose={resetEncerrarFeedback}
+        autoCloseDuration={1500}
+      />
+
+      <Dialog open={!!rotaParaCancelar}onOpenChange={(open) => { if(!open) { setRotaParaCancelar(null); setObsCancelamento(""); }}}>
         <DialogContent className="max-w-xs rounded-xl sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Cancelar visita</DialogTitle>
