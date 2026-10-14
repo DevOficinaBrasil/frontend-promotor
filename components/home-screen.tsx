@@ -9,6 +9,7 @@ import { haversine } from "@/lib/haversine";
 import { updateRotaACaminho, updateRotaCheckin, updateRotaFinalizado, updateRotaCancelado } from "@/service/rota.service";
 import { AppHeader } from "@/components/app-header";
 import { RouteCarousel } from "@/components/route-carousel";
+import { RotaFilter, aplicarFiltros, FILTROS_VAZIOS, type RotaFiltros } from "@/components/rota-filter";
 import { CheckinForm } from "@/components/checkin-form";
 import { RequestFeedback } from "@/components/request-feedback";
 import { GpsSelectionDialog } from "@/components/gps-dialog";
@@ -43,6 +44,8 @@ export function HomeScreen() {
   const [selectedRotaForSurvey, setSelectedRotaForSurvey] = useState<RotaPromotor | null>(null);
   const [surveyQuestions, setSurveyQuestions] = useState<CampanhaPerguntas[]>([]);
   const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
+
+  const [filtros, setFiltros] = useState<RotaFiltros>(FILTROS_VAZIOS);
 
   const [rotaParaEncerrar, setRotaParaEncerrar] = useState<RotaPromotor | null>(null);
 
@@ -125,6 +128,20 @@ export function HomeScreen() {
 
     return filtered.sort((a, b) => (a.oficina.distancia_km ?? 999) - (b.oficina.distancia_km ?? 999));
   }, [rotas, estrategia, userCoords]);
+
+  const rotasFiltradas = useMemo(() => aplicarFiltros(pendingRotas, filtros), [pendingRotas, filtros]);
+
+  // Remove filtros que deixaram de existir (ex.: visita finalizada era a única do bairro)
+  useEffect(() => {
+    const cidades = new Set(pendingRotas.map((r) => r.oficina.cidade));
+    const bairros = new Set(pendingRotas.map((r) => r.oficina.bairro));
+    setFiltros((prev) => {
+      const cidadesOk = prev.cidades.filter((c) => cidades.has(c));
+      const bairrosOk = prev.bairros.filter((b) => bairros.has(b));
+      if (cidadesOk.length === prev.cidades.length && bairrosOk.length === prev.bairros.length) return prev;
+      return { cidades: cidadesOk, bairros: bairrosOk };
+    });
+  }, [pendingRotas]);
 
   const completedCount = useMemo(
     () => rotas.filter((r) => r.status === "FINALIZADO" || r.status === "CANCELADO").length,
@@ -361,16 +378,32 @@ export function HomeScreen() {
             Sua rota de hoje
           </h2>
 
-          <RouteCarousel
+          <RotaFilter
             rotas={pendingRotas}
-            onNavigate={handleOpenGpsSelection}
-            onCheckin={handleCheckin}
-            onSurvey={handleResponderPesquisa}
-            onCancel={(r) => setRotaParaCancelar(r)}
-            isNavigating={false}
-            isCheckingIn={checkinFeedback === "loading"}
-            isCheckingInSurvey={surveyLoadingState === "loading"}
+            filtros={filtros}
+            onChange={setFiltros}
+            totalFiltrado={rotasFiltradas.length}
           />
+
+          {pendingRotas.length > 0 && rotasFiltradas.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card px-6 py-12 text-center">
+              <p className="text-base font-bold text-foreground">Nenhuma visita com esses filtros</p>
+              <Button variant="outline" className="h-11" onClick={() => setFiltros(FILTROS_VAZIOS)}>
+                Limpar filtro
+              </Button>
+            </div>
+          ) : (
+            <RouteCarousel
+              rotas={rotasFiltradas}
+              onNavigate={handleOpenGpsSelection}
+              onCheckin={handleCheckin}
+              onSurvey={handleResponderPesquisa}
+              onCancel={(r) => setRotaParaCancelar(r)}
+              isNavigating={false}
+              isCheckingIn={checkinFeedback === "loading"}
+              isCheckingInSurvey={surveyLoadingState === "loading"}
+            />
+          )}
         </section>
 
         {/* History section */}
